@@ -1,14 +1,18 @@
+import argparse
 from PIL import Image
 import os
 
 # Configuration
-target_dir = '/home/cibelle/tcc-ii/to_remember/images/boss'
 target_size = (512, 512)
 quality = 80
 
-def optimize():
+def optimize(target_dir):
+    if not os.path.exists(target_dir):
+        print(f"Directory {target_dir} does not exist.")
+        return
+
     files = [f for f in os.listdir(target_dir) if f.endswith('.png')]
-    print(f"Found {len(files)} PNG files to optimize.")
+    print(f"Found {len(files)} PNG files to optimize in '{target_dir}'.")
     
     for filename in files:
         file_path = os.path.join(target_dir, filename)
@@ -35,4 +39,8 @@ def optimize():
     print("\nOptimization complete.")
 
 if __name__ == "__main__":
-    optimize()
+    parser = argparse.ArgumentParser(description="Optimize PNG images to WebP.")
+    parser.add_argument("--dir", required=True, help="Directory containing PNG images to optimize")
+    args = parser.parse_args()
+    
+    optimize(args.dir)

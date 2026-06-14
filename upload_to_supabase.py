@@ -1,6 +1,7 @@
 import os
 import requests
 from dotenv import load_dotenv
+import argparse
 
 load_dotenv()
 
@@ -14,10 +15,6 @@ anon_key    = os.getenv('SUPABASE_ANON_KEY')
 
 # Nome do bucket no Supabase Storage (será criado automaticamente se não existir)
 bucket_name = 'boss-images'
-
-# Pasta local com as imagens .webp a enviar
-# ⚠️ Altere para o caminho onde estão as imagens otimizadas na sua máquina
-source_dir = '/home/cibelle/boss-stimuli-pipeline/images/boss'
 
 # ---------------------------------------------------------------------------
 
@@ -51,8 +48,12 @@ def ensure_bucket_exists():
         print(f"Erro ao criar bucket: {response.status_code} - {response.text}")
 
 
-def upload_files():
+def upload_files(source_dir):
     ensure_bucket_exists()
+
+    if not os.path.exists(source_dir):
+        print(f"Directory {source_dir} does not exist.")
+        return
 
     files = [f for f in os.listdir(source_dir) if f.endswith('.webp')]
     print(f"\nIniciando upload de {len(files)} arquivos para '{bucket_name}'...")
@@ -83,4 +84,8 @@ def upload_files():
 
 
 if __name__ == "__main__":
-    upload_files()
+    parser = argparse.ArgumentParser(description="Upload WebP images to Supabase.")
+    parser.add_argument("--dir", required=True, help="Directory containing WebP images to upload")
+    args = parser.parse_args()
+
+    upload_files(args.dir)
