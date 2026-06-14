@@ -2,27 +2,30 @@
 
 Scripts para selecionar, otimizar e carregar estímulos do **BOSS** (Brief Standardized Object Naming, Brodeur et al.) para o jogo **To Remember**.
 
-O pipeline cobre três etapas sequenciais: **seleção** de imagens a partir das normas BOSS → **otimização** das imagens (PNG → WebP 512 × 512) → **upload** para o bucket do Supabase.
+O pipeline cobre quatro etapas sequenciais automáticas: **seleção** de imagens a partir das normas BOSS → **separação** dos arquivos originais → **otimização** das imagens (PNG → WebP 512 × 512) → **upload** para o bucket do Supabase.
 
 ---
 
 ## Organização do repositório
 
-| Arquivo                  | Descrição                                                                                     |
-| ------------------------ | --------------------------------------------------------------------------------------------- |
-| `input/2010_2014.xlsx`   | Quadro combinado dos datasets BOSS-2010 e BOSS-2014 com métricas prontas para filtragem (DKO/DKN/TOT, acordos de nome/categoria, escalas perceptivo-cognitivas). É a fonte do `select_stimuli.py`. |
-| `select_stimuli.py`      | Seleciona automaticamente *N* estímulos a partir do Excel com critérios clínicos e dispersão por categoria. |
-| `optimize_images.py`     | Redimensiona imagens PNG para 512 × 512 px e converte para WebP (qualidade 80), apagando os PNGs originais. |
-| `upload_to_supabase.py`  | Envia as imagens `.webp` otimizadas para o bucket `stimuli` no Supabase Storage via HTTP. |
-| `output/`                | Diretório gerado automaticamente com os CSVs e XLSXs de resultado da seleção. |
-| `.env`                   | Variáveis de ambiente com credenciais do Supabase (não versionado). |
+| Arquivo                   | Descrição                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `input/2010_2014.xlsx`  | Quadro combinado dos datasets BOSS-2010 e BOSS-2014 com métricas prontas para filtragem.         |
+| `main.py`               | **Script principal (Recomendado)**. Orquestra a execução automática de todas as etapas.  |
+| `select_stimuli.py`     | Seleciona automaticamente*N* estímulos a partir do Excel com critérios clínicos.             |
+| `optimize_images.py`    | Redimensiona imagens PNG para 512 × 512 px e converte para WebP (qualidade 80).                  |
+| `upload_to_supabase.py` | Envia as imagens `.webp` otimizadas para o bucket `boss-images` no Supabase Storage via HTTP. |
+| `images/boss/`          | Pasta onde você deve colocar todas as imagens originais `.png` do banco BOSS.                  |
+| `images/selected/`      | Pasta gerada automaticamente com as imagens escolhidas e otimizadas.                              |
+| `output/`               | Diretório gerado automaticamente com as CSVs e XLSXs de resultado da seleção.                  |
+| `.env`                  | Variáveis de ambiente com credenciais do Supabase (não versionado).                             |
 
 ---
 
 ## Requisitos
 
 - Python 3.12+
-- Um projeto no [Supabase](https://supabase.com/) com um bucket chamado `stimuli`.
+- Um projeto no [Supabase](https://supabase.com/).
 
 ### Instalação das dependências
 
@@ -33,9 +36,6 @@ Este projeto usa **uv** como gerenciador de pacotes:
 uv sync
 ```
 
-Dependências declaradas: `pandas`, `openpyxl`, `lxml`, `python-dotenv`.  
-O `optimize_images.py` usa `Pillow` (instale separadamente se necessário: `uv add pillow`).
-
 ---
 
 ## Variáveis de ambiente (`.env`)
@@ -44,77 +44,65 @@ Crie um arquivo `.env` na raiz do projeto. O `.gitignore` já ignora esse arquiv
 
 ```env
 SUPABASE_URL=https://<seu-projeto>.supabase.co
-SUPABASE_ANON_KEY=<sua-chave-anon>
+SUPABASE_ANON_KEY=<sua-chave-secret-ou-publishable>
 ```
 
-> **Nota de segurança:** Para cargas em produção ou ambientes sem RLS configurado, prefira usar a `service_role` key em vez da `anon_key`. Nunca exponha a `service_role` no cliente do jogo.
+> ⚠️ **MUITO IMPORTANTE SOBRE A CHAVE E O BUCKET:**
+> O script tenta criar automaticamente o bucket `boss-images` no seu Supabase.
+>
+> - Para que a criação automática funcione, você **precisa** usar a sua **Secret Key** (`service_role` key) no `.env`. A Publishable key (antiga `anon`) bloqueia a criação de buckets via código por padrão devido ao RLS (Row Level Security).
+> - Se você preferir usar a Publishable key, você precisará **criar o bucket `boss-images` manualmente** no painel do Supabase (Storage) antes de rodar o pipeline, e configurar as políticas (RLS) para permitir os uploads.
 
 ---
 
-## Pipeline passo a passo
+## Execução do Pipeline Automatizado (Recomendado)
 
-### Etapa 1 — Selecionar estímulos
+O jeito mais fácil de rodar tudo é usando o script unificador `main.py`. Ele faz todo o trabalho braçal por você: roda a seleção, cria uma pasta isolada, copia apenas as imagens escolhidas, otimiza para WebP e faz o upload.
+
+```bash
+uv run python main.py --input input/2010_2014.xlsx --n 160
+```
+
+**Parâmetros do `main.py`:**
+
+- `--input`: Caminho para o arquivo BOSS `.xlsx` (obrigatório).
+- `--n`: Total de imagens a selecionar (padrão: `160`).
+- `--source-images`: Pasta com as imagens originais completas (padrão: `images/boss`).
+- `--selected-dir`: Pasta para onde as escolhidas serão copiadas e otimizadas (padrão: `images/selected`).
+- `--output`: Diretório de saída para as planilhas geradas (padrão: `output`).
+
+A seleção segue **4 etapas clínicas explícitas** baseadas em Brodeur et al. (2014) e Hodges & Patterson (1995), priorizando a ausência de DKO, alta familiaridade e baixa complexidade visual.
+
+---
+
+## Execução Manual (Passo a Passo Opcional)
+
+Caso precise rodar partes isoladas do processo:
+
+**1. Apenas selecionar (Gera planilhas CSV/Excel):**
 
 ```bash
 uv run python select_stimuli.py --input input/2010_2014.xlsx --n 160 --output output
 ```
 
-**Parâmetros:**
-
-| Parâmetro        | Descrição                                                          | Padrão       |
-| ---------------- | ------------------------------------------------------------------ | ------------ |
-| `--input`        | Caminho para o arquivo BOSS `.xlsx`                                | obrigatório  |
-| `--n`            | Total de imagens a selecionar                                      | `80`         |
-| `--per-category` | Máximo de imagens por categoria (0 = automático: N ÷ n_categorias, mínimo 2) | `0` |
-| `--output`       | Diretório de saída para CSV e XLSX                                 | `.` (atual)  |
-
-A seleção segue **4 etapas clínicas explícitas**:
-
-1. **Filtros obrigatórios** — `% DKO == 0` e `Familiarity Mean > 4.0` (Brodeur et al., 2014; Hodges & Patterson, 1995).
-2. **Score individual** — composto normalizado [0, 1] ponderado por relevância para Doença de Alzheimer: Familiaridade (0,35), Concordância de Nome (0,30), Concordância de Objeto (0,20), Complexidade Visual invertida (0,15).
-3. **Score de categoria** — média dos scores por `Modal category`, ordenando categorias do mais fácil ao mais difícil para pacientes com DA.
-4. **Seleção** — cobre o máximo de categorias possível, priorizando as mais fáceis, e retorna as *N* melhores imagens.
-
-Os arquivos gerados ficam em `output/`:
-- `boss_selecionadas_<N>.csv`
-- `boss_selecionadas_<N>.xlsx`
-
----
-
-### Etapa 2 — Otimizar imagens
-
-Configure o caminho da pasta com as imagens diretamente no script (`target_dir`) e execute:
+**2. Apenas otimizar:**
 
 ```bash
-uv run python optimize_images.py
+uv run python optimize_images.py --dir images/selected
 ```
 
-O script:
-- Encontra todos os arquivos `.png` no diretório configurado.
-- Redimensiona cada imagem para caber em **512 × 512 px** (mantendo a proporção).
-- Salva como `.webp` com qualidade 80.
-- **Apaga o `.png` original**.
-
----
-
-### Etapa 3 — Upload para o Supabase
+**3. Apenas upload:**
 
 ```bash
-uv run python upload_to_supabase.py
+uv run python upload_to_supabase.py --dir images/selected
 ```
-
-O script:
-- Lê as credenciais do `.env`.
-- Envia todos os arquivos `.webp` do diretório configurado para o bucket `stimuli`.
-- Pula arquivos que já existem no bucket (status HTTP 409), tornando o comando seguro para reexecutar.
 
 ---
 
 ## Checklist rápida
 
-1. `cp .env.example .env` e preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY`.
-2. `uv sync` para instalar dependências.
-3. `uv run python select_stimuli.py --input input/2010_2014.xlsx --n 160 --output output`
-4. `uv run python optimize_images.py` (após mover/copiar as imagens selecionadas para a pasta configurada).
-5. `uv run python upload_to_supabase.py`
-6. Verificar no painel Supabase → **Storage** → bucket `stimuli`.
+1. Coloque todas as imagens originais do BOSS na pasta `images/boss/`.
+2. `cp .env.example .env` e preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` (use a **Secret Key** para evitar erros de permissão).
+3. `uv sync` para instalar dependências.
+4. `uv run python main.py --input input/2010_2014.xlsx --n 160`
+5. Verificar no painel Supabase → **Storage** → bucket `boss-images`.
