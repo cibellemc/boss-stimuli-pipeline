@@ -8,17 +8,18 @@ O pipeline cobre quatro etapas sequenciais automáticas: **seleção** de imagen
 
 ## Organização do repositório
 
-| Arquivo                   | Descrição                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `input/2010_2014.xlsx`  | Quadro combinado dos datasets BOSS-2010 e BOSS-2014 com métricas prontas para filtragem.         |
-| `main.py`               | **Script principal (Recomendado)**. Orquestra a execução automática de todas as etapas.  |
-| `select_stimuli.py`     | Seleciona automaticamente*N* estímulos a partir do Excel com critérios clínicos.             |
-| `optimize_images.py`    | Redimensiona imagens PNG para 512 × 512 px e converte para WebP (qualidade 80).                  |
-| `upload_to_supabase.py` | Envia as imagens `.webp` otimizadas para o bucket `boss-images` no Supabase Storage via HTTP. |
-| `images/boss/`          | Pasta onde você deve colocar todas as imagens originais `.png` do banco BOSS.                  |
-| `images/selected/`      | Pasta gerada automaticamente com as imagens escolhidas e otimizadas.                              |
-| `output/`               | Diretório gerado automaticamente com as CSVs e XLSXs de resultado da seleção.                  |
-| `.env`                  | Variáveis de ambiente com credenciais do Supabase (não versionado).                             |
+| Arquivo                     | Descrição                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `input/2010_2014.xlsx`      | Quadro combinado dos datasets BOSS-2010 e BOSS-2014 com métricas prontas para filtragem.         |
+| `main.py`                   | **Script principal (Recomendado)**. Orquestra a execução automática das etapas de imagem.  |
+| `select_stimuli.py`         | Seleciona automaticamente*N* estímulos a partir do Excel com critérios clínicos.             |
+| `optimize_images.py`        | Redimensiona imagens PNG para 512 × 512 px e converte para WebP (qualidade 80).                  |
+| `insert_bucket_supabase.py` | Envia as imagens `.webp` otimizadas para o bucket `boss-images` no Supabase Storage via HTTP. |
+| `insert_boss.py`            | Insere as métricas das imagens na tabela do banco de dados (ex: `estimulos`) no Supabase.       |
+| `images/boss/`              | Pasta onde você deve colocar todas as imagens originais `.png` do banco BOSS.                  |
+| `images/selected/`          | Pasta gerada automaticamente com as imagens escolhidas e otimizadas.                              |
+| `output/`                   | Diretório gerado automaticamente com as CSVs e XLSXs de resultado da seleção.                  |
+| `.env`                      | Variáveis de ambiente com credenciais do Supabase (não versionado).                             |
 
 ---
 
@@ -91,10 +92,16 @@ uv run python select_stimuli.py --input input/2010_2014.xlsx --n 160 --output ou
 uv run python optimize_images.py --dir images/selected
 ```
 
-**3. Apenas upload:**
+**3. Apenas upload das imagens (Bucket):**
 
 ```bash
-uv run python upload_to_supabase.py --dir images/selected
+uv run python insert_bucket_supabase.py --dir images/selected
+```
+
+**4. Atualizar o banco de dados (Tabela de métricas):**
+
+```bash
+uv run python insert_boss.py --csv output/boss_selecionadas_160.csv --table estimulos --action replace
 ```
 
 ---
@@ -106,3 +113,4 @@ uv run python upload_to_supabase.py --dir images/selected
 3. `uv sync` para instalar dependências.
 4. `uv run python main.py --input input/2010_2014.xlsx --n 160`
 5. Verificar no painel Supabase → **Storage** → bucket `boss-images`.
+6. Rodar o script de banco de dados para salvar as métricas na tabela (opcional, requer o arquivo CSV gerado na etapa 4): `uv run python insert_boss.py --csv output/boss_selecionadas_160.csv --table estimulos --action replace`
