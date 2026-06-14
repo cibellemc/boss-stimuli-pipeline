@@ -72,7 +72,7 @@ def upload_files(source_dir):
 
             if response.status_code in (200, 201):
                 print(f"  ✓ {filename}")
-            elif response.status_code == 409:
+            elif response.status_code == 409 or (response.status_code == 400 and 'Duplicate' in response.text):
                 print(f"  — {filename} (já existe, pulando)")
             else:
                 print(f"  ✗ {filename}: {response.status_code} - {response.text}")
@@ -84,8 +84,8 @@ def upload_files(source_dir):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Upload WebP images to Supabase.")
-    parser.add_argument("--dir", required=True, help="Directory containing WebP images to upload")
+    parser = argparse.ArgumentParser(description="Faz o upload (insert) de imagens WebP para um bucket no Supabase Storage.")
+    parser.add_argument("--dir", required=True, help="Diretório contendo as imagens WebP para upload")
     args = parser.parse_args()
 
     upload_files(args.dir)

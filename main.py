@@ -83,7 +83,7 @@ def main():
     print("ETAPA 4: Fazendo upload para o Supabase...")
     print("="*50)
     cmd_upload = [
-        "uv", "run", "python", "upload_to_supabase.py",
+        "uv", "run", "python", "insert_bucket_supabase.py",
         "--dir", str(selected_path)
     ]
     subprocess.run(cmd_upload, check=True)
